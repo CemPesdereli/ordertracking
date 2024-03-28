@@ -3,6 +3,7 @@ package com.cem.ordertracking.service;
 import com.cem.ordertracking.entity.OrderInfo;
 import com.cem.ordertracking.entity.OrderItem;
 import com.cem.ordertracking.entity.Product;
+import com.cem.ordertracking.exception.ResourceNotFoundException;
 import com.cem.ordertracking.repository.OrderInfoRepository;
 import com.cem.ordertracking.repository.OrderItemRepository;
 import com.cem.ordertracking.repository.ProductRepository;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,9 +31,15 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public Customer saveCustomer(Customer customer) {
-        //customer.setPassword(passwordEncoder.encode(customer.getPassword()));  // Encode password
-        System.out.println("Saving customer "+customer);
-        return customerRepository.save(customer);
+
+        System.out.println("Saving customer ");
+        try{
+            return customerRepository.save(customer);
+        }catch (Exception e) {
+            // Handle other unexpected exceptions (e.g., log error)
+            throw new RuntimeException("Failed to save customer: " + e.getMessage());
+        }
+
     }
 
 
@@ -44,33 +50,41 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer findCustomerById(Long id) {
-        return customerRepository.findById(id).orElse(null);
+        return customerRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Customer not found with ID: " + id));
     }
 
     @Override
     @Transactional
     public void deleteCustomer(Long id) {
-        Customer customer = customerRepository.findById(id).orElseThrow();
 
-        List<OrderInfo> orderInfos = orderInfoRepository.findByCustomer(customer);
+        try {
 
-        for (OrderInfo orderInfo : orderInfos) {
-            List<OrderItem> orderItems = orderItemRepository.findByOrderInfo(orderInfo);
-            for (OrderItem orderItem : orderItems) {
-                Product product = orderItem.getProduct();
-                product.setStockQuantity(product.getStockQuantity() + orderItem.getQuantity());
-                productRepository.save(product);
+
+            Customer customer = customerRepository.findById(id).orElseThrow();
+
+            List<OrderInfo> orderInfos = orderInfoRepository.findByCustomer(customer);
+
+            for (OrderInfo orderInfo : orderInfos) {
+                List<OrderItem> orderItems = orderItemRepository.findByOrderInfo(orderInfo);
+                for (OrderItem orderItem : orderItems) {
+                    Product product = orderItem.getProduct();
+                    product.setStockQuantity(product.getStockQuantity() + orderItem.getQuantity());
+                    productRepository.save(product);
+                }
+                orderItemRepository.deleteAll(orderItems);
             }
-            orderItemRepository.deleteAll(orderItems);
+
+            orderInfoRepository.deleteAll(orderInfos);
+
+
+            customerRepository.deleteById(id);
+            System.out.println("Customer deleted with id: " + id);
+        }
+        catch (Exception  e) {
+            // Handle constraint violation (e.g., log error, throw custom exception)
+            throw new RuntimeException("Failed to delete customer: " + e.getMessage());
         }
 
-        orderInfoRepository.deleteAll(orderInfos);
-
-
-
-
-        customerRepository.deleteById(id);
-        System.out.println("Customer deleted with id: "+id);
     }
 
     @Override

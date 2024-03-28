@@ -18,7 +18,7 @@ public class Product {
     private BigDecimal price;  // Using BigDecimal for precise decimal representation
     private int stockQuantity;
 
-    // Getters, setters, and other relevant methods (you can use Lombok for brevity)
+
 
 
 

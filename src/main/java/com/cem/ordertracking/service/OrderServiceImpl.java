@@ -6,7 +6,7 @@ import com.cem.ordertracking.entity.OrderItem;
 import com.cem.ordertracking.entity.Product;
 import com.cem.ordertracking.entity.PurchaseRequest;
 import com.cem.ordertracking.exception.InsufficientStockException;
-import com.cem.ordertracking.repository.CustomerRepository;
+import com.cem.ordertracking.exception.ResourceNotFoundException;
 import com.cem.ordertracking.repository.OrderInfoRepository;
 import com.cem.ordertracking.repository.OrderItemRepository;
 import com.cem.ordertracking.repository.ProductRepository;
@@ -36,7 +36,13 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderInfo saveOrderInfo(OrderInfo orderInfo) {
         System.out.println("OrderInfo saving");
-        return orderInfoRepository.save(orderInfo);
+        try {
+            return orderInfoRepository.save(orderInfo);
+        }
+        catch (Exception e) {
+            // Handle other unexpected exceptions (e.g., log error)
+            throw new RuntimeException("Failed to save OrderInfo: " + e.getMessage());
+        }
     }
 
     @Override
@@ -46,7 +52,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderInfo findOrderInfoById(Long id) {
-        return orderInfoRepository.findById(id).orElse(null);
+        return orderInfoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found with ID: " + id));
     }
 
     @Override
@@ -54,7 +60,7 @@ public class OrderServiceImpl implements OrderService {
     public void deleteOrderInfo(Long id) {
 
 
-        OrderInfo orderInfo = orderInfoRepository.findById(id).orElseThrow();
+        OrderInfo orderInfo = orderInfoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found with Id: "+id));
         List<OrderItem> orderItems = orderItemRepository.findByOrderInfo(orderInfo);
 
         for (OrderItem orderItem : orderItems) {
@@ -72,8 +78,34 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderItem saveOrderItem(OrderItem orderItem) {
-        System.out.println("Saving OrderItem");
-        return orderItemRepository.save(orderItem);
+
+
+
+        long id = orderItem.getId();
+        OrderItem dbOrderItem = orderItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found with Id: "+id));
+        Product dbProduct = productRepository.findById(dbOrderItem.getProduct().getId()).orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+        long productId = orderItem.getProduct().getId();
+        Product product = productRepository.findById(productId).orElseThrow(() -> new ResourceNotFoundException("Product not found with Id: "+productId));
+
+
+
+
+        dbProduct.setStockQuantity(dbProduct.getStockQuantity()+ dbOrderItem.getQuantity());
+        if(product.getStockQuantity() < orderItem.getQuantity()){
+            throw new InsufficientStockException("Product " + product.getName() + " has insufficient stock");
+        }
+        productRepository.save(dbProduct);
+
+
+
+        product.setStockQuantity(product.getStockQuantity()-orderItem.getQuantity());
+        productRepository.save(product);
+
+
+        System.out.println("Updating OrderItem");
+         return orderItemRepository.save(orderItem);
+
+
     }
 
     @Override
@@ -83,14 +115,14 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderItem findOrderItemById(Long id) {
-        return orderItemRepository.findById(id).orElse(null);
+        return orderItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found with ID: " + id));
     }
 
     @Override
     @Transactional
     public void deleteOrderItem(Long id) {
 
-        OrderItem orderItem = orderItemRepository.findById(id).orElseThrow();
+        OrderItem orderItem = orderItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found with Id: "+id));
         Product product = orderItem.getProduct();
         product.setStockQuantity(orderItem.getQuantity()+ product.getStockQuantity());
         productRepository.save(product);
@@ -112,7 +144,7 @@ public class OrderServiceImpl implements OrderService {
 
         for(PurchaseRequest request: purchaseRequestList){
 
-            Product product = productRepository.findById(request.getProductId()).orElseThrow();
+            Product product = productRepository.findById(request.getProductId()).orElseThrow(() -> new ResourceNotFoundException("Product not found"));
             if(product.getStockQuantity() < request.getProductQuantity()){
                 throw new InsufficientStockException("Product " + product.getName() + " has insufficient stock");
             }
@@ -144,13 +176,13 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderInfo findMyOrderInfo(String token, Long id) {
         Customer customer = getCustomerFromToken(token);
-        OrderInfo orderInfo= orderInfoRepository.findById(id).orElseThrow();
+        OrderInfo orderInfo= orderInfoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found with ID: " + id));
 
         if(orderInfo.getCustomer()==customer){
             return orderInfo;
         }
         else{
-            throw new RuntimeException("Id for Order Info not found");
+            throw new ResourceNotFoundException("You are not authorized to access this OrderInfo");
         }
 
     }
@@ -158,7 +190,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public void deleteMyOrderInfo(String token, Long id) {
         Customer customer = getCustomerFromToken(token);
-        OrderInfo orderInfo= orderInfoRepository.findById(id).orElseThrow();
+        OrderInfo orderInfo= orderInfoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found with Id: "+id));
         if(orderInfo.getCustomer()==customer){
 
             List<OrderItem> orderItems = orderItemRepository.findByOrderInfo(orderInfo);
@@ -174,7 +206,7 @@ public class OrderServiceImpl implements OrderService {
             System.out.println("OrderInfo deleted with id: "+id);
         }
         else{
-            throw new RuntimeException("Id to be deleted not found");
+            throw new ResourceNotFoundException("Id to be deleted not found");
         }
 
 
@@ -201,12 +233,12 @@ public class OrderServiceImpl implements OrderService {
     public OrderItem findMyOrderItem(String token, Long id) {
         Customer customer= getCustomerFromToken(token);
 
-        OrderItem orderItem = orderItemRepository.findById(id).orElseThrow();
+        OrderItem orderItem = orderItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found with ID: " + id));
         if(orderItem.getOrderInfo().getCustomer()==customer){
             return orderItem;
         }
         else{
-            throw new RuntimeException("Id for OrderItem not found");
+            throw new RuntimeException("You are not authorized to access this OrderItem");
         }
 
 
@@ -219,7 +251,7 @@ public class OrderServiceImpl implements OrderService {
         Customer customer= getCustomerFromToken(token);
 
 
-        OrderInfo orderInfo = orderInfoRepository.findById(orderItem.getOrderInfo().getId()).orElseThrow();
+        OrderInfo orderInfo = orderInfoRepository.findById(orderItem.getOrderInfo().getId()).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found"));
         if(orderInfo.getCustomer()==customer){
             System.out.println("OrderItem saving");
            return orderItemRepository.save(orderItem);
@@ -231,20 +263,51 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public OrderItem updateMyOrderItem(String token, OrderItem orderItem) {
 
         Customer customer= getCustomerFromToken(token);
 
+        OrderItem dbOrderItem = orderItemRepository.findById(orderItem.getId()).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found"));
+        OrderInfo orderInfo = orderInfoRepository.findById(orderItem.getOrderInfo().getId()).orElseThrow(() -> new ResourceNotFoundException("OrderInfo not found"));
 
 
 
-        OrderInfo orderInfo = orderInfoRepository.findById(orderItem.getOrderInfo().getId()).orElseThrow();
-        if(orderInfo.getCustomer()==customer){
-            System.out.println("OrderItem updating");
-            return orderItemRepository.save(orderItem);
+        if(orderInfo.getCustomer()!= customer  || dbOrderItem.getOrderInfo().getCustomer() !=customer    ){
+
+            throw new RuntimeException("You do not have such OrderItem to update or this OrderInfo is not yours.");
+
         }
         else {
-            throw new RuntimeException("You do not have such OrderInfo to update");
+
+
+            Product dbProduct = productRepository.findById(dbOrderItem.getProduct().getId()).orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+            long productId = orderItem.getProduct().getId();
+            Product product = productRepository.findById(productId).orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+
+
+
+            dbProduct.setStockQuantity(dbProduct.getStockQuantity()+ dbOrderItem.getQuantity());
+            if(product.getStockQuantity() < orderItem.getQuantity()){
+                throw new InsufficientStockException("Product " + product.getName() + " has insufficient stock");
+            }
+            productRepository.save(dbProduct);
+
+
+
+            product.setStockQuantity(product.getStockQuantity()-orderItem.getQuantity());
+            productRepository.save(product);
+
+
+            System.out.println("Updating OrderItem");
+            return orderItemRepository.save(orderItem);
+
+
+
+
+
+
         }
     }
 
@@ -254,7 +317,7 @@ public class OrderServiceImpl implements OrderService {
 
 
         Customer customer = getCustomerFromToken(token);
-        OrderItem orderItem= orderItemRepository.findById(id).orElseThrow();
+        OrderItem orderItem= orderItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("OrderItem not found with id: "+id));
         if(orderItem.getOrderInfo().getCustomer()==customer){
 
 
@@ -267,7 +330,7 @@ public class OrderServiceImpl implements OrderService {
             System.out.println("OrderItem deleted with id: "+id);
         }
         else{
-            throw new RuntimeException("Id to be deleted not found");
+            throw new ResourceNotFoundException("Id to be deleted not found");
         }
 
 

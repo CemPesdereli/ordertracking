@@ -33,6 +33,7 @@ public class AuthenticationService {
                 .build();
 
         customerRepository.save(customer);
+        System.out.println("Registration successful");
         var jwtToken = jwtService.generateToken(customer);
         return AuthenticationResponse.builder()
                 .token(jwtToken)

@@ -21,7 +21,7 @@ public class OrderItem {
 
     private int quantity;
 
-    // Getters, setters, and other relevant methods (you can use Lombok for brevity)
+
 
     public OrderItem(){
     }
