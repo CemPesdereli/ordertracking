@@ -27,7 +27,7 @@ public class OrderInfo {
     @JsonIgnore
     private List<OrderItem> orderItems;  // No need to initialize
 
-    // Getters, setters, and other relevant methods (you can use Lombok for brevity)
+
 
     public OrderInfo(){
     }

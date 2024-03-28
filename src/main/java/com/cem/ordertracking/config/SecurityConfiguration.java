@@ -33,16 +33,21 @@ public class SecurityConfiguration {
 
         http.authorizeHttpRequests(configurer ->
                 configurer
-                        .requestMatchers("/api/v1/demo-controller").hasAuthority(String.valueOf(Role.ADMIN))
+
                         .requestMatchers(HttpMethod.PUT, "/customers").hasAnyAuthority(String.valueOf(Role.CUSTOMER), String.valueOf(Role.ADMIN))
                         .requestMatchers( "/customers/**").hasAuthority(String.valueOf(Role.ADMIN))
                         .requestMatchers(HttpMethod.POST, "/products").hasAuthority(String.valueOf(Role.ADMIN))
                         .requestMatchers(HttpMethod.PUT, "/products").hasAuthority(String.valueOf(Role.ADMIN))
                         .requestMatchers(HttpMethod.DELETE, "/products/**").hasAuthority(String.valueOf(Role.ADMIN))
+
+
+
                         .requestMatchers(HttpMethod.GET, "/orderInfos").hasAuthority(String.valueOf(Role.ADMIN))
+                        .requestMatchers(HttpMethod.GET, "/orderInfos/my").hasAnyAuthority(String.valueOf(Role.CUSTOMER), String.valueOf(Role.ADMIN))
                         .requestMatchers(HttpMethod.GET, "/orderInfos/{orderInfoId}").hasAuthority(String.valueOf(Role.ADMIN))
 
                         .requestMatchers(HttpMethod.GET, "/orderItems").hasAuthority(String.valueOf(Role.ADMIN))
+                        .requestMatchers(HttpMethod.GET, "/orderItems/my").hasAnyAuthority(String.valueOf(Role.CUSTOMER), String.valueOf(Role.ADMIN))
                         .requestMatchers(HttpMethod.GET, "/orderItems/{orderItemId}").hasAuthority(String.valueOf(Role.ADMIN))
 
 
