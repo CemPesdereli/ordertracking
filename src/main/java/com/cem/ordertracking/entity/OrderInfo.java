@@ -25,7 +25,7 @@ public class OrderInfo {
 
     @OneToMany(mappedBy = "orderInfo", cascade = CascadeType.ALL)  // One-to-Many with OrderItem
     @JsonIgnore
-    private List<OrderItem> orderItems;  // No need to initialize
+    private List<OrderItem> orderItems;
 
 
 
